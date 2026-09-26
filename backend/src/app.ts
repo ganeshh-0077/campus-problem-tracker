@@ -42,10 +42,13 @@ if (process.env.NODE_ENV !== 'test') {
 app.use('/api', apiRouter);
 
 // ── SERVE REACT FRONTEND ──────────────────────────────────────────────────────
-// The built React app lives in ../frontend/dist relative to this file.
-// In development (tsx watch) __dirname is src/, so we go up one level to backend/
-// then up another to the project root and into frontend/dist.
-const frontendDistPath = path.resolve(__dirname, '../../frontend/dist');
+const possibleDistPaths = [
+  path.resolve(__dirname, '../../frontend/dist'),
+  path.resolve(__dirname, '../frontend/dist'),
+  path.resolve(process.cwd(), 'frontend/dist'),
+  path.resolve(process.cwd(), '../frontend/dist'),
+];
+const frontendDistPath = possibleDistPaths.find((p) => fs.existsSync(p)) || possibleDistPaths[0];
 
 if (fs.existsSync(frontendDistPath)) {
   // Serve static assets (JS, CSS, images, etc.)

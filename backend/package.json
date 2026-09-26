@@ -5,7 +5,8 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "npm --prefix ../frontend install && npm --prefix ../frontend run build && tsc",
+    "build:backend": "tsc",
     "start": "node dist/server.js",
     "test": "vitest run"
   },
