@@ -26,7 +26,7 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   };
 
   const userSession = typeof window !== 'undefined'
-    ? localStorage.getItem('campus_user_session') || localStorage.getItem('demo_user_profile')
+    ? sessionStorage.getItem('campus_user_session')
     : null;
 
   if (session?.access_token) {

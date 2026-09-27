@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import { Profile } from '../types';
 import { X, UserPlus, Loader2, CheckCircle2, ShieldCheck, Mail, Lock, User } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { hashPassword } from '../context/AuthContext';
 
 interface AddStaffModalProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
   const isLight = theme === 'light';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('Password123!');
+  const [password, setPassword] = useState('');
   const [department, setDepartment] = useState('IT Staff');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,9 +62,10 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
 
       // Check if email already registered
       accounts = accounts.filter((a) => a.email.toLowerCase() !== newStaffProfile.email);
+      const passwordHash = await hashPassword(password.trim());
       accounts.push({
         ...newStaffProfile,
-        password: password.trim(),
+        passwordHash,
       });
       localStorage.setItem('campus_registered_users', JSON.stringify(accounts));
 
@@ -76,7 +78,7 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
       // Reset fields
       setName('');
       setEmail('');
-      setPassword('Password123!');
+      setPassword('');
 
       setTimeout(() => {
         setSuccess(null);
@@ -227,11 +229,14 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
                 isLight ? 'text-slate-400' : 'text-silver-500'
               }`} />
               <input
-                type="text"
+                id="staff-initial-password"
+                name="staff_initial_password"
+                type="password"
+                autoComplete="new-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password123!"
+                placeholder="Enter initial password (min 6 characters)"
                 className={`w-full text-xs sm:text-sm pl-10 pr-3.5 py-2.5 rounded-xl font-mono transition focus:outline-none ${
                   isLight
                     ? 'bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-slate-500'

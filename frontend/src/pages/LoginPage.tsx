@@ -46,12 +46,18 @@ export const LoginPage: React.FC = () => {
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setAuthMode('signin');
+    setName('');
+    setEmail('');
+    setPassword('');
     setAdminPasskey('');
     setError(null);
   };
 
   const handleBackToRoles = () => {
     setSelectedRole(null);
+    setName('');
+    setEmail('');
+    setPassword('');
     setAdminPasskey('');
     setError(null);
   };
@@ -411,6 +417,8 @@ export const LoginPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setAuthMode('signin');
+                    setName('');
+                    setPassword('');
                     setError(null);
                   }}
                   className={`py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
@@ -429,6 +437,8 @@ export const LoginPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setAuthMode('signup');
+                    setName('');
+                    setPassword('');
                     setError(null);
                   }}
                   className={`py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
@@ -497,7 +507,14 @@ export const LoginPage: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form
+              key={`form-${selectedRole}-${authMode}`}
+              id={`form-${selectedRole.toLowerCase()}-${authMode}`}
+              name={`form_${selectedRole.toLowerCase()}_${authMode}`}
+              onSubmit={handleSubmit}
+              className="space-y-4"
+              autoComplete="on"
+            >
               {/* Name field (Only shown for Student Sign Up) */}
               {selectedRole === 'Student' && authMode === 'signup' && (
                 <div>
@@ -514,7 +531,10 @@ export const LoginPage: React.FC = () => {
                       className={`absolute left-3.5 top-3 ${isLight ? 'text-slate-400' : 'text-silver-500'}`}
                     />
                     <input
+                      id="student-name"
+                      name="student_name"
                       type="text"
+                      autoComplete="name"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -544,7 +564,10 @@ export const LoginPage: React.FC = () => {
                     className={`absolute left-3.5 top-3 ${isLight ? 'text-slate-400' : 'text-silver-500'}`}
                   />
                   <input
+                    id={`${selectedRole.toLowerCase()}-email`}
+                    name={`${selectedRole.toLowerCase()}_email`}
                     type="email"
+                    autoComplete="username"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -579,7 +602,10 @@ export const LoginPage: React.FC = () => {
                     className={`absolute left-3.5 top-3 ${isLight ? 'text-slate-400' : 'text-silver-500'}`}
                   />
                   <input
+                    id={`${selectedRole.toLowerCase()}-password`}
+                    name={`${selectedRole.toLowerCase()}_password`}
                     type="password"
+                    autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -612,7 +638,12 @@ export const LoginPage: React.FC = () => {
                       className={`absolute left-3.5 top-3 ${isLight ? 'text-purple-500' : 'text-silver-400'}`}
                     />
                     <input
+                      id="admin-security-passkey"
+                      name="admin_security_passkey"
                       type="password"
+                      autoComplete="one-time-code"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
                       required
                       value={adminPasskey}
                       onChange={(e) => setAdminPasskey(e.target.value)}
@@ -670,35 +701,6 @@ export const LoginPage: React.FC = () => {
                   </>
                 )}
               </button>
-
-              {/* Auto-fill Helper for Quick Testing */}
-              {authMode === 'signin' && (
-                <div className="pt-2 text-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (selectedRole === 'Admin') {
-                        setEmail('admin@campus.edu');
-                        setPassword('Password123!');
-                        setAdminPasskey('Pass@123');
-                      } else if (selectedRole === 'Staff') {
-                        setEmail('james.staff@campus.edu');
-                        setPassword('Password123!');
-                      } else {
-                        setEmail('alex.student@campus.edu');
-                        setPassword('Password123!');
-                      }
-                    }}
-                    className={`text-[11px] underline transition cursor-pointer ${
-                      isLight
-                        ? 'text-slate-500 hover:text-slate-900 decoration-slate-300'
-                        : 'text-silver-500 hover:text-silver-300 decoration-[#333333]'
-                    }`}
-                  >
-                    💡 Click to populate default {selectedRole} credentials
-                  </button>
-                </div>
-              )}
             </form>
           </div>
         )}

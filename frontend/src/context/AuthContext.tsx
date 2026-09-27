@@ -18,21 +18,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-interface StoredAccount {
+export async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export interface StoredAccount {
   id: string;
   name: string;
   email: string;
-  password?: string;
+  passwordHash?: string;
   role: UserRole;
   created_at?: string;
 }
 
+// Pre-configured accounts with SHA-256 password hashes (never store plaintext passwords)
 export const DEFAULT_CAMPUS_ACCOUNTS: StoredAccount[] = [
   {
     id: 'c0000000-0000-0000-0000-000000000001',
     name: 'Alex Chen (Student)',
     email: 'alex.student@campus.edu',
-    password: 'Password123!',
+    passwordHash: 'a109e36947ad56de1dca1cc49f0ef8ac9ad9a7b1aa0df41fb3c4cb73c1ff01ea',
     role: 'Student',
     created_at: new Date().toISOString(),
   },
@@ -40,7 +49,7 @@ export const DEFAULT_CAMPUS_ACCOUNTS: StoredAccount[] = [
     id: 'b0000000-0000-0000-0000-000000000001',
     name: 'James Wilson (IT Staff)',
     email: 'james.staff@campus.edu',
-    password: 'Password123!',
+    passwordHash: 'a109e36947ad56de1dca1cc49f0ef8ac9ad9a7b1aa0df41fb3c4cb73c1ff01ea',
     role: 'Staff',
     created_at: new Date().toISOString(),
   },
@@ -48,7 +57,7 @@ export const DEFAULT_CAMPUS_ACCOUNTS: StoredAccount[] = [
     id: 'b0000000-0000-0000-0000-000000000002',
     name: 'Elena Gomez (Facilities Staff)',
     email: 'facilities@campus.edu',
-    password: 'Password123!',
+    passwordHash: 'a109e36947ad56de1dca1cc49f0ef8ac9ad9a7b1aa0df41fb3c4cb73c1ff01ea',
     role: 'Staff',
     created_at: new Date().toISOString(),
   },
@@ -56,7 +65,7 @@ export const DEFAULT_CAMPUS_ACCOUNTS: StoredAccount[] = [
     id: 'a0000000-0000-0000-0000-000000000001',
     name: 'Sarah Connor (Admin)',
     email: 'admin@campus.edu',
-    password: 'Password123!',
+    passwordHash: 'a109e36947ad56de1dca1cc49f0ef8ac9ad9a7b1aa0df41fb3c4cb73c1ff01ea',
     role: 'Admin',
     created_at: new Date().toISOString(),
   },
@@ -86,12 +95,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: (userMeta.role as UserRole) || 'Student',
           };
           setProfile(userProf);
-          localStorage.setItem('campus_user_session', JSON.stringify(userProf));
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('campus_user_session', JSON.stringify(userProf));
+          }
           api.syncUser(userProf).catch(() => {});
         }
       } else {
         setProfile(data as Profile);
-        localStorage.setItem('campus_user_session', JSON.stringify(data));
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('campus_user_session', JSON.stringify(data));
+        }
         api.syncUser(data as Profile).catch(() => {});
       }
     } catch (err) {
@@ -100,25 +113,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Clear legacy demo session to ensure user explicitly logs in
-    localStorage.removeItem('demo_user_profile');
-
-    // Check for active authenticated user session stored locally
-    const savedSession = localStorage.getItem('campus_user_session');
-    if (savedSession) {
+    if (typeof window !== 'undefined') {
+      // Clean up legacy persistent sessions from localStorage so sessions do not survive browser close
       try {
-        const parsed = JSON.parse(savedSession) as Profile;
-        setProfile(parsed);
-        setUser({
-          id: parsed.id,
-          email: parsed.email,
-          user_metadata: { name: parsed.name, role: parsed.role },
-        } as any);
-        api.syncUser(parsed).catch(() => {});
-        setLoading(false);
-        return;
-      } catch (e) {
         localStorage.removeItem('campus_user_session');
+        localStorage.removeItem('demo_user_profile');
+
+        // Clean up any legacy Supabase tokens from localStorage
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+            localStorage.removeItem(key);
+          }
+        }
+
+        // Sanitize any existing campus_registered_users in localStorage to remove plaintext passwords
+        const regRaw = localStorage.getItem('campus_registered_users');
+        if (regRaw) {
+          const parsed = JSON.parse(regRaw);
+          if (Array.isArray(parsed)) {
+            let modified = false;
+            for (const item of parsed) {
+              if (item.password) {
+                delete item.password;
+                modified = true;
+              }
+            }
+            if (modified) {
+              localStorage.setItem('campus_registered_users', JSON.stringify(parsed));
+            }
+          }
+        }
+      } catch (e) {
+        // ignore cleanup errors
+      }
+
+      // Check ephemeral session storage for active tab/browser session
+      const savedSession = sessionStorage.getItem('campus_user_session');
+      if (savedSession) {
+        try {
+          const parsed = JSON.parse(savedSession) as Profile;
+          setProfile(parsed);
+          setUser({
+            id: parsed.id,
+            email: parsed.email,
+            user_metadata: { name: parsed.name, role: parsed.role },
+          } as any);
+          api.syncUser(parsed).catch(() => {});
+          setLoading(false);
+          return;
+        } catch (e) {
+          sessionStorage.removeItem('campus_user_session');
+        }
       }
     }
 
@@ -127,7 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Initialize Supabase Auth listener
+    // Initialize Supabase Auth listener (configured with sessionStorage)
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -145,7 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         await fetchProfile(session.user.id, session.user.user_metadata);
       } else {
-        const local = localStorage.getItem('campus_user_session');
+        const local = typeof window !== 'undefined' ? sessionStorage.getItem('campus_user_session') : null;
         if (!local) {
           setProfile(null);
         }
@@ -186,7 +232,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           setProfile(userProf);
           setUser(data.user);
-          localStorage.setItem('campus_user_session', JSON.stringify(userProf));
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('campus_user_session', JSON.stringify(userProf));
+          }
           await api.syncUser(userProf).catch(() => {});
           setLoading(false);
           return;
@@ -200,25 +248,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 2. Check registered campus accounts & pre-seeded demo accounts
+    // 2. Check registered campus accounts & pre-seeded demo accounts (using passwordHash)
     let accounts: StoredAccount[] = [...DEFAULT_CAMPUS_ACCOUNTS];
-    const registeredRaw = localStorage.getItem('campus_registered_users');
-    if (registeredRaw) {
-      try {
-        const userSaved: StoredAccount[] = JSON.parse(registeredRaw);
-        accounts = [
-          ...userSaved,
-          ...accounts.filter(
-            (d) => !userSaved.some((u) => u.email.toLowerCase() === d.email.toLowerCase())
-          ),
-        ];
-      } catch (e) {
-        // parse error
+    if (typeof window !== 'undefined') {
+      const registeredRaw = localStorage.getItem('campus_registered_users');
+      if (registeredRaw) {
+        try {
+          const userSaved: StoredAccount[] = JSON.parse(registeredRaw);
+          accounts = [
+            ...userSaved,
+            ...accounts.filter(
+              (d) => !userSaved.some((u) => u.email.toLowerCase() === d.email.toLowerCase())
+            ),
+          ];
+        } catch (e) {
+          // parse error
+        }
       }
     }
 
+    const inputHash = await hashPassword(password);
     const match = accounts.find(
-      (a) => a.email.toLowerCase() === email.toLowerCase() && a.password === password
+      (a) =>
+        a.email.toLowerCase() === email.toLowerCase() &&
+        (a.passwordHash ? a.passwordHash === inputHash : false)
     );
     if (match) {
       if (expectedRole && match.role !== expectedRole) {
@@ -241,7 +294,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: userProf.email,
         user_metadata: { name: userProf.name, role: userProf.role },
       } as any);
-      localStorage.setItem('campus_user_session', JSON.stringify(userProf));
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('campus_user_session', JSON.stringify(userProf));
+      }
       await api.syncUser(userProf).catch(() => {});
       setLoading(false);
       return;
@@ -263,23 +318,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       created_at: new Date().toISOString(),
     };
 
-    // Save account locally
-    const registeredRaw = localStorage.getItem('campus_registered_users');
-    let accounts: StoredAccount[] = [];
-    try {
-      if (registeredRaw) accounts = JSON.parse(registeredRaw);
-    } catch (e) {
-      accounts = [];
-    }
+    const passwordHash = await hashPassword(password);
 
-    // Avoid duplicate email
-    accounts = accounts.filter((a) => a.email.toLowerCase() !== newProfile.email);
-    accounts.push({
-      ...newProfile,
-      password,
-    });
-    localStorage.setItem('campus_registered_users', JSON.stringify(accounts));
-    localStorage.setItem('campus_user_session', JSON.stringify(newProfile));
+    // Save account locally with passwordHash (never store plaintext password)
+    if (typeof window !== 'undefined') {
+      const registeredRaw = localStorage.getItem('campus_registered_users');
+      let accounts: StoredAccount[] = [];
+      try {
+        if (registeredRaw) accounts = JSON.parse(registeredRaw);
+      } catch (e) {
+        accounts = [];
+      }
+
+      // Avoid duplicate email
+      accounts = accounts.filter((a) => a.email.toLowerCase() !== newProfile.email);
+      accounts.push({
+        ...newProfile,
+        passwordHash,
+      });
+      localStorage.setItem('campus_registered_users', JSON.stringify(accounts));
+      sessionStorage.setItem('campus_user_session', JSON.stringify(newProfile));
+    }
 
     // Also register in Supabase Auth if connected
     if (isSupabaseConfigured) {
@@ -314,19 +373,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     setLoading(true);
-    localStorage.removeItem('campus_user_session');
-    localStorage.removeItem('demo_user_profile');
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.auth.signOut();
-      } catch (e) {
-        // ignore
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('campus_user_session');
+        sessionStorage.clear();
+        localStorage.removeItem('campus_user_session');
+        localStorage.removeItem('demo_user_profile');
+
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+            localStorage.removeItem(key);
+          }
+        }
       }
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut();
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      setLoading(false);
     }
-    setUser(null);
-    setProfile(null);
-    setSession(null);
-    setLoading(false);
   };
 
   const value = useMemo(

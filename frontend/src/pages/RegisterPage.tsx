@@ -62,7 +62,10 @@ export const RegisterPage: React.FC = () => {
               Full Name
             </label>
             <input
+              id="register-name"
+              name="name"
               type="text"
+              autoComplete="name"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -76,7 +79,10 @@ export const RegisterPage: React.FC = () => {
               Email Address
             </label>
             <input
+              id="register-email"
+              name="email"
               type="email"
+              autoComplete="username"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -90,7 +96,10 @@ export const RegisterPage: React.FC = () => {
               Password
             </label>
             <input
+              id="register-password"
+              name="password"
               type="password"
+              autoComplete="new-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
